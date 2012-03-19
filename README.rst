@@ -2,9 +2,16 @@ NCBI taxonomy tree made easy
 =============================
 
 This is a simple program that I use to query the NCBI taxonomy
-tree. It requires the ETE python library (ete.cgenomics.org) to work.
-Features are still very rudimentary. Please, refer/cite this
-repository if you use the program.
+tree. It requires the ETE python library (ete.cgenomics.org) and
+sqlite3 to work.  Features are still very rudimentary. Please,
+refer/cite this repository if you use the program.
+
+Requirements: 
+***************
+
+ * ETE (ete.cgenomics.org)
+ * sqlite3 
+
 
 Usage:
 *********
