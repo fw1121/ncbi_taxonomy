@@ -2,7 +2,7 @@ import os
 from string import strip
 from ete2 import Tree
 
-def load_ncbi_tree_for_dump():
+def load_ncbi_tree_from_dump():
     # Download: ftp://ftp.ncbi.nih.gov/pub/taxonomy/taxdump.tar.gz
     parent2child = {}
     name2node = {}
@@ -56,7 +56,7 @@ def generate_table(t):
             print >>OUT, '\t'.join([n.name, "", n.taxname, ','.join(track)])
     OUT.close()
 
-t = load_ncbi_tree_for_dump()
+t = load_ncbi_tree_from_dump()
 
 print "Updating database..."
 generate_table(t)
