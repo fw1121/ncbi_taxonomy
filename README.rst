@@ -15,7 +15,7 @@ update taxonomy tree (download and parse the latest NCBI taxonomy DB):
 
   $ tar zxf taxdump.tar.gz 
 
-  $ python update_taxadb.py
+  $ python update_taxadb.py # This may take a while
 
 get help:
 ------------
