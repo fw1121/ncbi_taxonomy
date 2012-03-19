@@ -1,3 +1,6 @@
+NCBI taxonomy tree made easy
+=============================
+
 This is a simple program that I use to query the NCBI taxonomy
 tree. It requires the ETE python library (ete.cgenomics.org) to work.
 Features are still very rudimentary. Please, refer/cite this
@@ -7,28 +10,30 @@ Examples
 *********
 
 update taxonomy tree (download and parse the latest NCBI taxonomy DB): 
-------------------------------------------------------------------------
-python update_taxadb.py
+-----------------------------------------------------------------------
+$ wget  ftp://ftp.ncbi.nih.gov/pub/taxonomy/taxdump.tar.gz
+$ tar zxf taxdump.tar.gz 
+$ python update_taxadb.py
 
 get help:
 ------------
-python ./ncbi_taxa.py -h 
+$ python ./ncbi_taxa.py -h 
 
 get name-to-taxid translation: 
 ------------------------------------
-python ./ncbi_taxa.py -n Bos taurus, Gallus gallus, Homo sapiens 
+$ python ./ncbi_taxa.py -n Bos taurus, Gallus gallus, Homo sapiens 
 
 get NCBI topology from species names:
 ------------------------------------------------
-python ./ncbi_taxa.py -n Bos taurus, Gallus gallus, Homo sapiens -x
+$ python ./ncbi_taxa.py -n Bos taurus, Gallus gallus, Homo sapiens -x
 
 get NCBI lineage and info from species names: 
 ------------------------------------------------
-python ./ncbi_taxa.py -n Bos taurus, Gallus gallus, Homo sapiens -i
+$ python ./ncbi_taxa.py -n Bos taurus, Gallus gallus, Homo sapiens -i
 
 get the same as above using taxids: 
 ------------------------------------
-python ./ncbi_taxa.py -t 9913 9031 9606 -x
+$ python ./ncbi_taxa.py -t 9913 9031 9606 -x
 
 Future features: 
 ****************
