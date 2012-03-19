@@ -1,5 +1,5 @@
 from string import strip
-from ete2a1 import Tree
+from ete2 import Tree
 
 def load_ncbi_tree_for_dump():
     # Download: ftp://ftp.ncbi.nih.gov/pub/taxonomy/taxdump.tar.gz
