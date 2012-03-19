@@ -1,3 +1,4 @@
+import os
 from string import strip
 from ete2 import Tree
 
@@ -55,19 +56,19 @@ def generate_table(t):
             print >>OUT, '\t'.join([n.name, "", n.taxname, ','.join(track)])
     OUT.close()
 
-t = load_ncbi_tree_for_dump()
-
-print "Updating database..."
-generate_table(t)
-CMD = open("commands.tmp", "w")
-cmd = """
-DROP TABLE IF EXISTS species; 
-CREATE TABLE species (taxid INT PRIMARY KEY, parent INT, spname VARCHAR(50), track TEXT);
-.separator "\t"
-.import taxa.tab species
-"""
-CMD.write(cmd)
-CMD.close()
+#t = load_ncbi_tree_for_dump()
+# 
+#print "Updating database..."
+#generate_table(t)
+#CMD = open("commands.tmp", "w")
+#cmd = """
+#DROP TABLE IF EXISTS species; 
+#CREATE TABLE species (taxid INT PRIMARY KEY, parent INT, spname VARCHAR(50), track TEXT);
+#.separator "\t"
+#.import taxa.tab species
+#"""
+#CMD.write(cmd)
+#CMD.close()
 os.system("sqlite3 taxa.sqlite < commands.tmp")
 
 print "Creating extended newick file with the whole NCBI tree [ncbi.nw]"

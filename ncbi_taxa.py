@@ -173,18 +173,20 @@ if __name__ == "__main__":
         all_names.extend(map(strip, open(args.names_file, "rU").read().split("\n")))
     if args.names:
         all_names.extend(map(strip, " ".join(args.names).split(",")))
+
+    all_names = [n.lower() for n in all_names]
     if all_names:
         log.info("Dumping name translations:")
         name2id = get_name_translator(all_names)
         for name, taxid in name2id.iteritems():
             all_taxids.append(taxid)
-            print "\t".join(map(str, [name, taxid]))
+            print "\t".join(map(str, [name.lower(), taxid]))
             
     if args.taxid_file:
         all_taxids.extend(map(strip, open(args.taxid_file, "rU").read().split("\n")))
     if args.taxid:
         all_taxids.extend(args.taxid)
-
+        
     if all_taxids and args.info:
         log.info("Dumping %d taxid translations:" %len(all_taxids))
         all_taxids = set(all_taxids)
@@ -204,9 +206,9 @@ if __name__ == "__main__":
         for n in t.traverse():
             n.add_features(taxid=n.name)
             if n.is_leaf():
-                n.name = "%s {%s}" %(id2name[n.name], n.name)
+                n.name = "%s {%s}" %(id2name.get(n.name, n.name), n.name)
             else:
-                n.name = id2name[n.name]
+                n.name = id2name.get(n.name, n.name)
 
         print t.get_ascii(compact=False)
         print
