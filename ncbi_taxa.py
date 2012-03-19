@@ -206,13 +206,15 @@ if __name__ == "__main__":
         for n in t.traverse():
             n.add_features(taxid=n.name)
             if n.is_leaf():
-                n.name = "%s {%s}" %(id2name.get(n.name, n.name), n.name)
+                n.name = "%s{%s}" %(id2name.get(int(n.name), n.name), n.name)
             else:
-                n.name = id2name.get(n.name, n.name)
+                n.name = id2name.get(int(n.name), n.name)
 
         print t.get_ascii(compact=False)
-        print
+        print "\n\n**Plain newick:"
         print t.write(format=9)
-        print
-        print t.write(format=9, features=["taxid"])
+        print "\n\n**Newick with internal node names:"
+        print t.write(format=8)
+        print "\n\n**Extended newick:"
+        print t.write(format=9, features=["taxid", "name"])
          
