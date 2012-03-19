@@ -12,7 +12,9 @@ Usage:
 update taxonomy tree (download and parse the latest NCBI taxonomy DB): 
 -----------------------------------------------------------------------
   $ wget  ftp://ftp.ncbi.nih.gov/pub/taxonomy/taxdump.tar.gz
+
   $ tar zxf taxdump.tar.gz 
+
   $ python update_taxadb.py
 
 get help:
