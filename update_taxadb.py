@@ -12,14 +12,14 @@ def load_ncbi_tree_for_dump():
         name_type = fields[3].lower()
         taxname = fields[1]
         if name_type == "scientific name":
-            node2taxname[nodename] = taxname 
+            node2taxname[nodename] = taxname.lower() 
 
     print len(node2taxname), "names loaded"
 
     for line in open("nodes.dmp"):
         fields =  line.split("|")
-        nodename = fields[0].strip()
-        parentname = fields[1].strip()
+        nodename = fields[0].strip().lower()
+        parentname = fields[1].strip().lower()
         n = Tree()
         n.name = nodename
         n.taxname = node2taxname[nodename]
