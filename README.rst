@@ -26,23 +26,23 @@ update taxonomy tree (download and parse the latest NCBI taxonomy DB):
 
 get help:
 ------------
-  $ python ./ncbi_taxa.py -h 
+  $ python ./ncbi_query.py -h 
 
 get name-to-taxid translation: 
 ------------------------------------
-  $ python ./ncbi_taxa.py -n Bos taurus, Gallus gallus, Homo sapiens 
+  $ python ./ncbi_query.py -n Bos taurus, Gallus gallus, Homo sapiens 
 
 get NCBI topology from species names:
 ------------------------------------------------
-  $ python ./ncbi_taxa.py -n Bos taurus, Gallus gallus, Homo sapiens -x
+  $ python ./ncbi_query.py -n Bos taurus, Gallus gallus, Homo sapiens -x
 
 get NCBI lineage and info from species names: 
 ------------------------------------------------
-  $ python ./ncbi_taxa.py -n Bos taurus, Gallus gallus, Homo sapiens -i
+  $ python ./ncbi_query.py -n Bos taurus, Gallus gallus, Homo sapiens -i
 
 get the same as above using taxids: 
 ------------------------------------
-  $ python ./ncbi_taxa.py -t 9913 9031 9606 -x
+  $ python ./ncbi_query.py -t 9913 9031 9606 -x
 
 Future features: 
 ******************

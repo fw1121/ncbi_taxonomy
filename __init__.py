@@ -1,1 +1,1 @@
-from ncbi_taxa import *
+from ncbi_query import *
