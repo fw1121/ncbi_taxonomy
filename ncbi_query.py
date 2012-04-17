@@ -1,4 +1,4 @@
-#!/bin/env python 
+#!/usr/bin/env python 
 import sys
 import os
 from collections import defaultdict, deque
@@ -8,10 +8,10 @@ from string import strip
 import logging as log
 
 import operator
-import sqlite3
+import pysqlite2.dbapi2 as sqlite3
+#import sqlite3
 
 from ete2 import PhyloTree
-
 
 __DESCRIPTION__ = """ 
 Query ncbi taxonomy using a local DB
@@ -20,10 +20,19 @@ Query ncbi taxonomy using a local DB
 log.basicConfig(level=log.INFO, \
                     format="%(levelname)s - %(message)s" )
 
-module_path = os.path.split(__file__)[0]
-c = sqlite3.connect(os.path.join(module_path, 'taxa.sqlite'))
-
-
+def get_fuzzy_name_translation(name, sim=0.9):
+    maxdiffs = int(round(len(name) * (1-sim)))
+    cmd = 'SELECT taxid, spname, LEVENSHTEIN(spname, "%s") AS sim  FROM species WHERE sim<%s ORDER BY sim LIMIT 1;' % (name, maxdiffs)
+    taxid, spname, sim = None, None, None
+    result = c.execute(cmd)
+    try:
+        taxid, spname, sim = result.fetchone()
+    except TypeError:
+        pass
+    else:
+        taxid = int(taxid)
+    return taxid, spname, sim
+    
 def get_sp_lineage(taxid):
     if not taxid:
         return None
@@ -164,8 +173,18 @@ if __name__ == "__main__":
                         action="store_true",
                         help="""shows NCBI information about the species""")
 
+    parser.add_argument("--fuzzy", dest="fuzzy", type=float,
+                        help=("Tries a fuzzy (and SLOW) search for those"
+                              " species names that could not be translated"
+                              " into taxids. A float number must be provided"
+                              " indicating the minimum string similarity."))
+    
     args = parser.parse_args()
-
+                        
+    # Loads database
+    module_path = os.path.split(os.path.realpath(__file__))[0]
+    c = sqlite3.connect(os.path.join(module_path, 'taxa.sqlite'))
+   
     all_names = []
     all_taxids = []
 
@@ -174,13 +193,31 @@ if __name__ == "__main__":
     if args.names:
         all_names.extend(map(strip, " ".join(args.names).split(",")))
 
-    all_names = [n.lower() for n in all_names]
+    all_names = set([n.lower() for n in all_names])
+    not_found = set()
+    name2realname = {}
     if all_names:
         log.info("Dumping name translations:")
         name2id = get_name_translator(all_names)
-        for name, taxid in name2id.iteritems():
-            all_taxids.append(taxid)
-            print "\t".join(map(str, [name.lower(), taxid]))
+        not_found = all_names - set(name2id.keys())
+                        
+        if args.fuzzy and not_found:
+            log.info("%s unknown names", len(not_found))
+            for name in not_found:
+                log.info("Trying fuzzy search for %s", name)
+                # enable extension loading
+                c.enable_load_extension(True)
+                c.execute("select load_extension('%s')" % os.path.join(module_path, "levenshtein.sqlext"))
+                tax, realname, sim = get_fuzzy_name_translation(name, args.fuzzy)
+                if tax:
+                    log.info("FOUND!                  %s :%s", realname, tax)
+                    name2id[name] = tax
+                    name2realname[name] = realname
+            
+        for name in all_names:
+            taxid = name2id.get(name, "???")
+            realname = name2realname.get(name, name)
+            print "\t".join(map(str, [name, realname.capitalize(), taxid]))
             
     if args.taxid_file:
         all_taxids.extend(map(strip, open(args.taxid_file, "rU").read().split("\n")))

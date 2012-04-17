@@ -116,7 +116,7 @@ def get_speciation_trees(t):
     all_subtrees = set(get_subtrees(t))
     return all_subtrees, dups
 
-def analyze_subtrees(subtrees):
+def analyze_subtrees(t, subtrees, reft=None):
     ncbi_mistakes = 0
     valid_subtrees = 0
     broken_groups = set()
@@ -137,20 +137,19 @@ def analyze_subtrees(subtrees):
                 rf, rf_max = subt.robinson_foulds(reft, attr_t1="spcode")
                 total_rf += float(rf)/rf_max
 
-            if args.tax_info:
-                si, no, tax2name = analyze_tracks(subt)
-                ncbi_mistakes += len(no)
-                if no:
-                    broken_subtrees += 1
-                broken_groups.update([e[0] for e in no])
-                correct_groups.update([e[0] for e in si])
-                children = []
-                for tip in subt.iter_leaves():
-                    target = (t&tip.name)
-                    children.append(target)
-                    target.broken_groups = set([e[0] for e in no])
-                # Annotate node
-                t.get_common_ancestor(children).broken_groups = set([tax2name[e[0]] for e in no])
+            si, no, tax2name = analyze_tracks(subt)
+            ncbi_mistakes += len(no)
+            if no:
+                broken_subtrees += 1
+            broken_groups.update([e[0] for e in no])
+            correct_groups.update([e[0] for e in si])
+            children = []
+            for tip in subt.iter_leaves():
+                target = (t&tip.name)
+                children.append(target)
+                target.broken_groups = set([e[0] for e in no])
+            # Annotate node
+            t.get_common_ancestor(children).broken_groups = set([tax2name[e[0]] for e in no])
                 
     return valid_subtrees, broken_subtrees, ncbi_mistakes, total_rf
 
@@ -184,7 +183,7 @@ if __name__ == "__main__":
                         help="""Display tree after the analysis.""")
     
     parser.add_argument("-t", "--tree", dest="target_tree",  nargs="+",
-                        type=str, required=True,
+                        type=str, 
                         help="""Tree file in newick format""")
 
     parser.add_argument("-tf", dest="tree_list_file",
@@ -247,7 +246,7 @@ if __name__ == "__main__":
 
         # Split tree into species trees
         subtrees, dups =  get_speciation_trees(t.copy())
-        valid_subtrees, broken_subtrees, ncbi_mistakes, total_rf = analyze_subtrees(subtrees)
+        valid_subtrees, broken_subtrees, ncbi_mistakes, total_rf = analyze_subtrees(t, subtrees)
         
         iter_values = (os.path.basename(tfile).ljust(50), dups, valid_subtrees, broken_subtrees, ncbi_mistakes, total_rf, rf)
         print >>OUT, ' '.join([str(h).center(15)  for h in iter_values])

@@ -12,6 +12,14 @@ Requirements:
  * ETE (ete.cgenomics.org)
  * sqlite3 
 
+ * Fuzzy search for name translation requires python 2.7 or pysqlite2
+   compiled with load_extension capabilities.
+   For instance, download pysqlite2, comment the following line in setup.cfg: 
+  
+      define=SQLITE_OMIT_LOAD_EXTENSION
+  
+   and run "sudo python setup.py install" 
+
 
 Usage:
 *********
@@ -43,6 +51,10 @@ get NCBI lineage and info from species names:
 get the same as above using taxids: 
 ------------------------------------
   $ python ./ncbi_query.py -t 9913 9031 9606 -x
+
+translate names using fuzzy search queries:
+------------------------------------------------
+  $ python ./ncbi_query.py -n Bos taur, gallus, Homo sapien --fuzzy 0.9
 
 Future features: 
 ******************
