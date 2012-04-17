@@ -9,6 +9,7 @@ refer/cite this repository if you use the program.
 Change log
 ***************
  **April 17th 2012**
+ * Name searches are not case sensitive 
  * Added synonym support for name translation
  * Added fuzzy search
 
@@ -18,14 +19,22 @@ Requirements:
  * ETE (ete.cgenomics.org)
  * sqlite3 
 
- * Fuzzy search for name translation requires python 2.7 or pysqlite2
-   compiled with load_extension capabilities.
-   For instance, download pysqlite2, comment the following line in setup.cfg: 
+ * Fuzzy search for name translation requires:
+
+   python 2.7 or pysqlite2 compiled with load_extension capabilities.
+   For instance, download pysqlite2 from PyPi, comment the following line in setup.cfg: 
   
       define=SQLITE_OMIT_LOAD_EXTENSION
   
-   and run "sudo python setup.py install" 
+   and run "sudo python setup.py install". 
 
+   Also, the sqlite3 extension "levenshtein.sqlext" should be present,
+   so you will need to compile the SQLite extension included in this
+   package.
+   
+   $ cd SQLite-Levenshtein
+   $ make
+   
 
 Usage:
 *********
@@ -62,10 +71,11 @@ translate names using fuzzy search queries:
 ------------------------------------------------
 
   fuzzy factor indicates the allowed level of similarity to report
-  matches. 0.9 is ok to detect typos in names, while lower values
-  could be used to find matches at the level of genus, etc.
+  matches. i.e: 0.8 would mean that only matches changing 80% of the
+  characters in the original string will be considered (case
+  sensitive).
 
-  $ python ./ncbi_query.py -n Bos taur, gallus, Homo sapien --fuzzy 0.9
+  $ python ./ncbi_query.py -n Bos tauras, gallus, Homo sapien --fuzzy 0.8
 
 Future features: 
 ******************

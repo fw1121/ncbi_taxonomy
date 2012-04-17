@@ -10,7 +10,7 @@ import logging as log
 import operator
 import pysqlite2.dbapi2 as sqlite3
 #import sqlite3
-
+import math
 from ete2 import PhyloTree
 
 # Loads database
@@ -25,24 +25,28 @@ log.basicConfig(level=log.INFO, \
                     format="%(levelname)s - %(message)s" )
 
 def get_fuzzy_name_translation(name, sim=0.9):
-    maxdiffs = int(round(len(name) * (1-sim)))
-    cmd = 'SELECT taxid, spname, LEVENSHTEIN(spname, "%s") AS sim  FROM species WHERE sim<%s ORDER BY sim LIMIT 1;' % (name, maxdiffs)
-    taxid, spname, sim = None, None, None
+    log.info("Trying fuzzy search for %s", name)
+    maxdiffs = math.ceil(len(name) * (1-sim))
+    cmd = 'SELECT taxid, spname, LEVENSHTEIN(spname, "%s") AS sim  FROM species WHERE sim<=%s ORDER BY sim LIMIT 1;' % (name, maxdiffs)
+    taxid, spname, score = None, None, None
     result = c.execute(cmd)
     try:
-        taxid, spname, sim = result.fetchone()
+        taxid, spname, score = result.fetchone()
     except TypeError:
-        cmd = 'SELECT taxid, spname, LEVENSHTEIN(spname, "%s") AS sim  FROM synonym WHERE sim<%s ORDER BY sim LIMIT 1;' % (name, maxdiffs)
+        cmd = 'SELECT taxid, spname, LEVENSHTEIN(spname, "%s") AS sim  FROM synonym WHERE sim<=%s ORDER BY sim LIMIT 1;' % (name, maxdiffs)
         result = c.execute(cmd)
         try:
-            taxid, spname, sim = result.fetchone()
+            taxid, spname, score = result.fetchone()
         except:
             pass
         else:
             taxid = int(taxid)
     else:
         taxid = int(taxid)
-    return taxid, spname, sim
+    if taxid: 
+        log.info("FOUND!                  %s taxid:%s score:%s (%s)", spname, taxid, score, score*(1-sim))
+        
+    return taxid, spname, score
     
 def get_sp_lineage(taxid):
     if not taxid:
@@ -227,13 +231,12 @@ if __name__ == "__main__":
         if args.fuzzy and not_found:
             log.info("%s unknown names", len(not_found))
             for name in not_found:
-                log.info("Trying fuzzy search for %s", name)
                 # enable extension loading
                 c.enable_load_extension(True)
-                c.execute("select load_extension('%s')" % os.path.join(module_path, "levenshtein.sqlext"))
+                c.execute("select load_extension('%s')" % os.path.join(module_path,
+                                            "SQLite-Levenshtein/levenshtein.sqlext"))
                 tax, realname, sim = get_fuzzy_name_translation(name, args.fuzzy)
                 if tax:
-                    log.info("FOUND!                  %s :%s", realname, tax)
                     name2id[name] = tax
                     name2realname[name] = realname
             
