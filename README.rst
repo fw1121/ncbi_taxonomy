@@ -19,7 +19,7 @@ Requirements:
  * ETE (ete.cgenomics.org)
  * sqlite3 
 
- * Fuzzy search for name translation requires:
+ * Fuzzy search (optional) requires:
 
    python 2.7 or pysqlite2 compiled with load_extension capabilities.
    For instance, download pysqlite2 from PyPi, comment the following line in setup.cfg: 
@@ -76,11 +76,6 @@ translate names using fuzzy search queries:
   sensitive).
 
   $ python ./ncbi_query.py -n Bos tauras, gallus, Homo sapien --fuzzy 0.8
-
-Future features: 
-******************
-
-* Support for incomplete taxa names
 
 
 Contact: jhcepas[at]gmail.com
