@@ -13,6 +13,10 @@ import pysqlite2.dbapi2 as sqlite3
 
 from ete2 import PhyloTree
 
+# Loads database
+module_path = os.path.split(os.path.realpath(__file__))[0]
+c = sqlite3.connect(os.path.join(module_path, 'taxa.sqlite'))
+
 __DESCRIPTION__ = """ 
 Query ncbi taxonomy using a local DB
 """
@@ -28,7 +32,14 @@ def get_fuzzy_name_translation(name, sim=0.9):
     try:
         taxid, spname, sim = result.fetchone()
     except TypeError:
-        pass
+        cmd = 'SELECT taxid, spname, LEVENSHTEIN(spname, "%s") AS sim  FROM synonym WHERE sim<%s ORDER BY sim LIMIT 1;' % (name, maxdiffs)
+        result = c.execute(cmd)
+        try:
+            taxid, spname, sim = result.fetchone()
+        except:
+            pass
+        else:
+            taxid = int(taxid)
     else:
         taxid = int(taxid)
     return taxid, spname, sim
@@ -54,17 +65,31 @@ def get_taxid_translator(taxids):
     for tax, spname in result.fetchall():
         id2name[tax] = spname
     return id2name
-   
+  
 
 def get_name_translator(names):
     name2id = {}
-    query = ','.join(['"%s"' %n for n in names])
+    name2realname = {}
+    name2origname = {}
+    for n in names:
+        name2origname[n.lower()] = n
+    query = ','.join(['"%s"' %n for n in name2origname.iterkeys()])
+    cmd = 'select spname, taxid from species where spname IN (%s)' %query
     result = c.execute('select spname, taxid from species where spname IN (%s)' %query)
     for sp, taxid in result.fetchall():
-        name2id[sp] = taxid
-
+        oname = name2origname[sp.lower()]
+        name2id[oname] = taxid
+        name2realname[oname] = sp
+    missing =  names - set(name2id.keys())
+    if missing:
+        query = ','.join(['"%s"' %n for n in missing])
+        result = c.execute('select spname, taxid from synonym where spname IN (%s)' %query)
+        for sp, taxid in result.fetchall():
+            oname = name2origname[sp.lower()]
+            name2id[oname] = taxid
+            name2realname[oname] = sp
     return name2id
-    
+  
 
 def translate_to_names(taxids):
     def get_name(taxid):
@@ -79,6 +104,7 @@ def translate_to_names(taxids):
         names.append(id2name.setdefault(sp, get_name(sp)))
     return names
 
+    
 def get_topology(taxids):
     sp2track = {}
     elem2node = {}
@@ -111,7 +137,7 @@ def get_topology(taxids):
         return root
 
 def annotate_tree(t):
-    tax2name = get_taxid_translator([n.taxid for n in t.iter_leaves()])
+    tax2name = get_taxid_translator([n.taxid for n in t.iter_leaves() if n.taxid])
     leaf2track = dict([ (n.taxid, get_sp_lineage(n.taxid)) for n in t.iter_leaves()])
     for n in t.iter_leaves():
         if n.taxid:
@@ -180,20 +206,17 @@ if __name__ == "__main__":
                               " indicating the minimum string similarity."))
     
     args = parser.parse_args()
-                        
-    # Loads database
-    module_path = os.path.split(os.path.realpath(__file__))[0]
-    c = sqlite3.connect(os.path.join(module_path, 'taxa.sqlite'))
+                       
    
-    all_names = []
+    all_names = set([])
     all_taxids = []
 
     if args.names_file:
-        all_names.extend(map(strip, open(args.names_file, "rU").read().split("\n")))
+        all_names.update(map(strip, open(args.names_file, "rU").read().split("\n")))
     if args.names:
-        all_names.extend(map(strip, " ".join(args.names).split(",")))
+        all_names.update(map(strip, " ".join(args.names).split(",")))
 
-    all_names = set([n.lower() for n in all_names])
+    #all_names = set([n.lower() for n in all_names])
     not_found = set()
     name2realname = {}
     if all_names:

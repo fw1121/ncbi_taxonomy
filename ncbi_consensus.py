@@ -19,19 +19,20 @@ def ncbi_layout(node):
     global name2color
     if node.is_leaf():
         tax_pos = 10
-        for tax,k in zip(node.lineage, node.named_lineage):
-            f = faces.TextFace("%10s" %k, fsize=15)
-            try:
-                color = name2color[k]
-            except KeyError:
-                name2color[k] = color = treeview.main.random_color()
-         
-            if hasattr(node, "broken_groups") and tax in node.broken_groups:
-                f.background.color = color
-                faces.add_face_to_node(f, node, tax_pos, position="aligned")
-                tax_pos += 1
-        f = faces.AttrFace("spname", fsize=15)
-        faces.add_face_to_node(f, node, 10, position="branch-right")
+        if hasattr(node, "lineage"):
+            for tax,k in zip(node.lineage, node.named_lineage):
+                f = faces.TextFace("%10s" %k, fsize=15)
+                try:
+                    color = name2color[k]
+                except KeyError:
+                    name2color[k] = color = treeview.main.random_color()
+
+                if hasattr(node, "broken_groups") and tax in node.broken_groups:
+                    f.background.color = color
+                    faces.add_face_to_node(f, node, tax_pos, position="aligned")
+                    tax_pos += 1
+            f = faces.AttrFace("spname", fsize=15)
+            faces.add_face_to_node(f, node, 10, position="branch-right")
     else:
         if getattr(node, "broken_groups", None):
             f = faces.TextFace("\n".join(node.broken_groups), fsize=15, fgcolor="red")
@@ -106,7 +107,7 @@ def get_speciation_trees(t):
     n2species = {}
     dups = 0
     for n, content in n2content.iteritems():
-        n2species[n] = set([_n.taxid for _n in content])
+        n2species[n] = set([_n.taxid for _n in content if _n.taxid != 1])
     for n in n2content:
         if is_dup(n):
             dups += 1
@@ -156,8 +157,12 @@ def analyze_subtrees(t, subtrees, reft=None):
 def annotate_tree_with_taxa(t, name2taxa_file):
     names2taxid = dict([map(strip, line.split("\t"))
                         for line in open(name2taxa_file)])
+    not_found = 0 
     for n in t.iter_leaves():
-        n.add_features(taxid=names2taxid[n.name])
+        n.add_features(taxid=names2taxid.get(n.name, 1))
+        if n.taxid == 1:
+            not_found += 1
+    print "%s nodes where not found within NCBI taxonomy" %not_found
     ncbi.annotate_tree(t)
         
 if __name__ == "__main__":

@@ -6,6 +6,12 @@ tree. It requires the ETE python library (ete.cgenomics.org) and
 sqlite3 to work.  Features are still very rudimentary. Please,
 refer/cite this repository if you use the program.
 
+Change log
+***************
+ **April 17th 2012**
+ * Added synonym support for name translation
+ * Added fuzzy search
+
 Requirements: 
 ***************
 
@@ -54,6 +60,11 @@ get the same as above using taxids:
 
 translate names using fuzzy search queries:
 ------------------------------------------------
+
+  fuzzy factor indicates the allowed level of similarity to report
+  matches. 0.9 is ok to detect typos in names, while lower values
+  could be used to find matches at the level of genus, etc.
+
   $ python ./ncbi_query.py -n Bos taur, gallus, Homo sapien --fuzzy 0.9
 
 Future features: 

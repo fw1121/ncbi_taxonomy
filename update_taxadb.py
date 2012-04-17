@@ -2,11 +2,13 @@ import os
 from string import strip
 from ete2 import Tree
 
+
 def load_ncbi_tree_from_dump():
     # Download: ftp://ftp.ncbi.nih.gov/pub/taxonomy/taxdump.tar.gz
     parent2child = {}
     name2node = {}
     node2taxname = {}
+    synonyms = set()
     print "Loading node names..."
     for line in open("names.dmp"):
         fields =  map(strip, line.split("|"))
@@ -14,14 +16,17 @@ def load_ncbi_tree_from_dump():
         name_type = fields[3].lower()
         taxname = fields[1]
         if name_type == "scientific name":
-            node2taxname[nodename] = taxname.lower() 
+            node2taxname[nodename] = taxname
+        elif name_type in set(["synonym", "equivalent name"]):
+            synonyms.add( (nodename, taxname) )
     print len(node2taxname), "names loaded."
-    
+    print len(synonyms), "synonyms loaded."
+
     print "Loading nodes..."
     for line in open("nodes.dmp"):
         fields =  line.split("|")
-        nodename = fields[0].strip().lower()
-        parentname = fields[1].strip().lower()
+        nodename = fields[0].strip()
+        parentname = fields[1].strip()
         n = Tree()
         n.name = nodename
         n.taxname = node2taxname[nodename]
@@ -38,7 +43,7 @@ def load_ncbi_tree_from_dump():
            parent_node = name2node[parent]
            parent_node.add_child(name2node[node])
     print "Tree is loaded."
-    return t
+    return t, synonyms
 
 def generate_table(t):
     OUT = open("taxa.tab", "w")
@@ -56,16 +61,26 @@ def generate_table(t):
             print >>OUT, '\t'.join([n.name, "", n.taxname, ','.join(track)])
     OUT.close()
 
-t = load_ncbi_tree_from_dump()
+    
+t, synonyms = load_ncbi_tree_from_dump()
 
 print "Updating database..."
 generate_table(t)
+open("syn.tab", "w").write('\n'.join(["%s\t%s" %(v[0],v[1]) for v in synonyms]))
+
 CMD = open("commands.tmp", "w")
 cmd = """
-DROP TABLE IF EXISTS species; 
-CREATE TABLE species (taxid INT PRIMARY KEY, parent INT, spname VARCHAR(50), track TEXT);
+DROP TABLE IF EXISTS species;
+DROP TABLE IF EXISTS synonym; 
+CREATE TABLE species (taxid INT PRIMARY KEY, parent INT, spname VARCHAR(50) COLLATE NOCASE, track TEXT);
+CREATE TABLE synonym (taxid INT,spname VARCHAR(50) COLLATE NOCASE, PRIMARY KEY (spname, taxid));
+CREATE INDEX spname1 ON species (spname COLLATE NOCASE);
+CREATE INDEX spname2 ON synonym (spname COLLATE NOCASE);
+
 .separator "\t"
 .import taxa.tab species
+.import syn.tab synonym
+
 """
 CMD.write(cmd)
 CMD.close()
