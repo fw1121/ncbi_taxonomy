@@ -8,8 +8,7 @@ from string import strip
 import logging as log
 
 import operator
-import pysqlite2.dbapi2 as sqlite3
-#import sqlite3
+import sqlite3
 import math
 from ete2 import PhyloTree
 
@@ -28,7 +27,7 @@ def get_fuzzy_name_translation(name, sim=0.9):
     log.info("Trying fuzzy search for %s", name)
     maxdiffs = math.ceil(len(name) * (1-sim))
     cmd = 'SELECT taxid, spname, LEVENSHTEIN(spname, "%s") AS sim  FROM species WHERE sim<=%s ORDER BY sim LIMIT 1;' % (name, maxdiffs)
-    taxid, spname, score = None, None, None
+    taxid, spname, score = None, None, len(name)
     result = c.execute(cmd)
     try:
         taxid, spname, score = result.fetchone()
@@ -43,10 +42,12 @@ def get_fuzzy_name_translation(name, sim=0.9):
             taxid = int(taxid)
     else:
         taxid = int(taxid)
+
+    norm_score = 1-(float(score)/len(name))
     if taxid: 
-        log.info("FOUND!                  %s taxid:%s score:%s (%s)", spname, taxid, score, score*(1-sim))
-        
-    return taxid, spname, score
+        log.info("FOUND!                  %s taxid:%s score:%s (%s)", spname, taxid, score, norm_score)
+
+    return taxid, spname, norm_score
     
 def get_sp_lineage(taxid):
     if not taxid:
@@ -54,7 +55,8 @@ def get_sp_lineage(taxid):
     result = c.execute('SELECT track FROM species WHERE taxid=%s' %taxid)
     raw_track = result.fetchone()
     if not raw_track:
-        raise ValueError("%s taxid not found" %taxid)
+        raw_track = ["1"]
+        #raise ValueError("%s taxid not found" %taxid)
     track = map(int, raw_track[0].split(","))
     return list(reversed(track))
     
@@ -93,8 +95,8 @@ def get_name_translator(names):
             name2id[oname] = taxid
             name2realname[oname] = sp
     return name2id
+    
   
-
 def translate_to_names(taxids):
     def get_name(taxid):
         result = c.execute('select spname from species where taxid=%s' %taxid)
@@ -119,7 +121,7 @@ def get_topology(taxids):
             node.name = str(elem)
             track.append(node)
         sp2track[sp] = track
-
+    
     # generate parent child relationships
     for sp, track in sp2track.iteritems():
         parent = None
@@ -129,31 +131,48 @@ def get_topology(taxids):
             parent = elem
     root = elem2node[1]
 
+    # This fixes cases in which requested taxids are internal nodes
+    for x in set(sp2track) - set([n.name for n in root.iter_leaves()]):
+        new_leaf = sp2track[x][-1].copy()
+        for ch in new_leaf.get_children():
+            ch.detach()
+        sp2track[x][-1].add_child(new_leaf)
+
     #remove onechild-nodes
     clean=1
     if clean:
         for n in root.get_descendants():
             if len(n.children) == 1: 
                 n.delete()
+        
+
     if len(root.children) == 1:
         return root.children[0].detach()
     else:
         return root
 
-def annotate_tree(t):
-    tax2name = get_taxid_translator([n.taxid for n in t.iter_leaves() if n.taxid])
-    leaf2track = dict([ (n.taxid, get_sp_lineage(n.taxid)) for n in t.iter_leaves()])
-    for n in t.iter_leaves():
+def annotate_tree(t, tax2name=None, tax2track=None):
+    leaves = t.get_leaves()
+    taxids = set(map(int, [n.taxid for n in leaves]))
+    
+    if not tax2name or taxids - set(map(int, tax2name.keys())):
+        print "Querying for tax names"
+        tax2name = get_taxid_translator([n.taxid for n in t.iter_leaves() if n.taxid])
+    if not tax2track or taxids - set(map(int, tax2track.keys())):
+        print "Querying for tax lineages"
+        tax2track = dict([ (n.taxid, get_sp_lineage(n.taxid)) for n in t.iter_leaves()])
+       
+    for n in leaves:
         if n.taxid:
             n.spname = tax2name.get(int(n.taxid), "Unknown")
-            n.lineage = leaf2track[n.taxid]
+            n.lineage = tax2track[n.taxid]
             n.named_lineage = translate_to_names(n.lineage)
         else:
             n.spname = "Unknown"
             n.named_lineage = []
             n.lineage = []
         
-    return t
+    return tax2name, tax2track
 
 def test():
     # TESTS
@@ -210,8 +229,11 @@ if __name__ == "__main__":
                               " indicating the minimum string similarity."))
     
     args = parser.parse_args()
-                       
-   
+    
+    if args.fuzzy:
+        import pysqlite2.dbapi2 as sqlite3
+        c = sqlite3.connect(os.path.join(module_path, 'taxa.sqlite'))
+        
     all_names = set([])
     all_taxids = []
 
@@ -219,15 +241,16 @@ if __name__ == "__main__":
         all_names.update(map(strip, open(args.names_file, "rU").read().split("\n")))
     if args.names:
         all_names.update(map(strip, " ".join(args.names).split(",")))
-
+    all_names.discard("")
     #all_names = set([n.lower() for n in all_names])
     not_found = set()
     name2realname = {}
+    name2score = {}
     if all_names:
         log.info("Dumping name translations:")
         name2id = get_name_translator(all_names)
         not_found = all_names - set(name2id.keys())
-                        
+
         if args.fuzzy and not_found:
             log.info("%s unknown names", len(not_found))
             for name in not_found:
@@ -239,17 +262,19 @@ if __name__ == "__main__":
                 if tax:
                     name2id[name] = tax
                     name2realname[name] = realname
-            
+                    name2score[name] = "Fuzzy:%0.2f" %sim
+                    
         for name in all_names:
             taxid = name2id.get(name, "???")
             realname = name2realname.get(name, name)
-            print "\t".join(map(str, [name, realname.capitalize(), taxid]))
+            score = name2score.get(name, "Exact:1.0")
+            print "\t".join(map(str, [score, name, realname.capitalize(), taxid]))
             
     if args.taxid_file:
         all_taxids.extend(map(strip, open(args.taxid_file, "rU").read().split("\n")))
     if args.taxid:
         all_taxids.extend(args.taxid)
-        
+    print all_taxids    
     if all_taxids and args.info:
         log.info("Dumping %d taxid translations:" %len(all_taxids))
         all_taxids = set(all_taxids)
@@ -264,7 +289,7 @@ if __name__ == "__main__":
         log.info("Dumping NCBY taxonomy of %d taxa:" %len(all_taxids))
         all_taxids = set(all_taxids)
         all_taxids.discard("")
-        t = get_topology(all_taxids) 
+        t = get_topology(all_taxids)
         id2name = get_taxid_translator([n.name for n in t.traverse()])
         for n in t.traverse():
             n.add_features(taxid=n.name)
@@ -273,11 +298,16 @@ if __name__ == "__main__":
             else:
                 n.name = id2name.get(int(n.name), n.name)
 
-        print t.get_ascii(compact=False)
+        #print t.get_ascii(compact=False)
         print "\n\n**Plain newick:"
         print t.write(format=9)
         print "\n\n**Newick with internal node names:"
         print t.write(format=8)
         print "\n\n**Extended newick:"
         print t.write(format=9, features=["taxid", "name"])
-         
+        for i in t.iter_leaves():
+            i.name = i.taxid
+        print "\n\n**Plain newick (taxids):"
+        print t.write(format=9)
+        
+        

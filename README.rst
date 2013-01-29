@@ -17,7 +17,7 @@ Requirements:
 ***************
 
  * ETE (ete.cgenomics.org)
- * sqlite3 
+ * sqlite3
 
  * Fuzzy search (optional) requires:
 
