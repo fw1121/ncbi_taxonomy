@@ -208,13 +208,9 @@ def get_topology(taxids, intermediate_nodes=False):
 
     #remove onechild-nodes
     if not intermediate_nodes:
-        clean=1
-        if clean:
-            for n in root.get_descendants():
-                print n.name
-                if len(n.children) == 1 and \
-                        int(n.name) not in taxids: 
-                    n.delete(prevent_nondicotomic=False)
+        for n in root.get_descendants():
+            if len(n.children) == 1 and int(n.name) not in taxids: 
+                n.delete(prevent_nondicotomic=False)
        
     if len(root.children) == 1:
         return root.children[0].detach()
@@ -289,8 +285,12 @@ if __name__ == "__main__":
 
     parser.add_argument("-x", "--taxonomy", dest="taxonomy",   
                         action="store_true",
-                        help="""shows the NCBI taxonomy tree of the provided species""")
+                        help="""returns a pruned version of the NCBI taxonomy tree containing target species""")
 
+    parser.add_argument("--show_tree", dest="show_tree",   
+                        action="store_true",
+                        help="""shows the NCBI taxonomy tree of the provided species""")
+    
     parser.add_argument("--fix_subspecies", dest="subspecies",   
                         action="store_true",
                         help=("When used, all nodes under the the species rank"
@@ -312,6 +312,8 @@ if __name__ == "__main__":
                               " species names that could not be translated"
                               " into taxids. A float number must be provided"
                               " indicating the minimum string similarity."))
+
+    
     
     args = parser.parse_args()
     
@@ -387,36 +389,38 @@ if __name__ == "__main__":
         id2name = get_taxid_translator([n.name for n in t.traverse()])
         for n in t.traverse():
             n.add_features(taxid=n.name)
+            sci_name = id2name.get(int(n.name), "?")
+            n.add_features(sci_name=str(sci_name))
             n.add_features(rank=tax2rank.get(int(n.name), "?"))
             if n.rank in COLOR_RANKS:
                 n.add_features(bgcolor=COLOR_RANKS[n.rank])
-            if n.is_leaf():
-                n.name = "%s{%s}" %(id2name.get(int(n.name), n.name), n.name)
-            else:
-                n.name = id2name.get(int(n.name), n.name)
+            n.name = "%s{%s}" %(id2name.get(int(n.name), n.name), n.name)
 
         if args.subspecies:
             species_nodes = [n for n in t.traverse() if n.rank == "species"]
             for sp_node in species_nodes:
-                print sp_node
-                print sp_node.rank, sp_node.name
-                connector = sp_node.__class__()
-                #for ch in sp_node.children:
-                #    print ch
-                #    ch.detach()
-                #    sp_node.add_child(ch)
-                for f in sp_node.features:
-                    connector.add_feature(f, getattr(sp_node, f))
-                sp_node.add_child(connector)
-                print sp_node
+                bellow = sp_node.get_descendants()
+                if bellow:
+                    # creates a copy of the species node
+                    connector = sp_node.__class__()
+                    for f in sp_node.features:
+                        connector.add_feature(f, getattr(sp_node, f))
+                    connector.name = connector.name + "{species}"
+                    for n in bellow:
+                        n.detach()
+                        n.name = n.name + "{%s}" %n.rank
+                        sp_node.add_child(n)
+                    sp_node.add_child(connector)
                 
         #print t.get_ascii(compact=False)
+        if args.show_tree:
+            t.show()
         print "\n\n**Plain newick:"
         print t.write(format=9)
         print "\n\n**Newick with internal node names:"
         print t.write(format=8)
         print "\n\n**Extended newick:"
-        print t.write(format=9, features=["taxid", "name", "bgcolor"])
+        print t.write(format=9, features=["taxid", "name", "bgcolor", "sci_name"])
         for i in t.iter_leaves():
             i.name = i.taxid
         print "\n\n**Plain newick (taxids):"
