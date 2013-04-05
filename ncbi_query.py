@@ -290,7 +290,8 @@ if __name__ == "__main__":
 
     parser.add_argument("-x", "--taxonomy", dest="taxonomy",   
                         action="store_true",
-                        help="""returns a pruned version of the NCBI taxonomy tree containing target species""")
+                        help=("returns a pruned version of the NCBI taxonomy"
+                              " tree containing target species"))
 
     parser.add_argument("--show_tree", dest="show_tree",   
                         action="store_true",
@@ -390,7 +391,7 @@ if __name__ == "__main__":
             print >>sys.stderr, notfound, "NOT FOUND"
             
     if all_taxids and args.taxonomy:
-        log.info("Dumping NCBY taxonomy of %d taxa:" %len(all_taxids))
+        log.info("Dumping NCBI taxonomy of %d taxa:" %len(all_taxids))
         all_taxids = set(all_taxids)
         all_taxids.discard("")
         t = get_topology(all_taxids, args.full_lineage, args.rank_limit)
@@ -403,7 +404,8 @@ if __name__ == "__main__":
             n.name = "%s{%s}" %(id2name.get(int(n.name), n.name), n.name)
 
         if args.collapse_subspecies:
-            species_nodes = [n for n in t.traverse() if n.rank == "species"]
+            species_nodes = [n for n in t.traverse() if n.rank == "species"
+                             if int(n.taxid) in all_taxids]
             for sp_node in species_nodes:
                 bellow = sp_node.get_descendants()
                 if bellow:
@@ -417,21 +419,20 @@ if __name__ == "__main__":
                         n.name = n.name + "{%s}" %n.rank
                         sp_node.add_child(n)
                     sp_node.add_child(connector)
+                    sp_node.add_feature("collapse_subspecies", "1")
                 
-        #print t.get_ascii(compact=False)
         if args.show_tree:
             t.show()
-        print "\n\n**Plain newick:"
-        print t.write(format=9)
-        print "\n\n**Newick with internal node names:"
-        print t.write(format=8)
-        print "\n\n**Extended newick:"
-        print t.write(format=9, features=["taxid", "name", "bgcolor", "sci_name"])
+            
+        print "\n\n  ===== Newick files saved as 'your_taxa_query.*' ===== "
+        t.write(format=9, outfile="your_ncbi_query.nw")
+        t.write(format=8, outfile="your_ncbi_query.named.nw")
+        t.write(format=9, features=["taxid", "name", "rank", "bgcolor", "sci_name", "collapse_subspecies"],
+                outfile="your_ncbi_query.extended.nw")
         for i in t.iter_leaves():
             i.name = i.taxid
-        print "\n\n**Plain newick (taxids):"
-        print t.write(format=9)
-        
+        t.write(format=9, outfile="your_ncbi_query.taxids.nw")
+
     if all_taxids and reftree:
         translator = get_taxid_translator(all_taxids)
         for n in reftree.iter_leaves():
