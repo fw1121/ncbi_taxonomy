@@ -27,7 +27,9 @@ try:
     name2color = cPickle.load(open("ncbi_colors.pkl"))
 except Exception:
     name2color = {}
-   
+else:
+    print "loaded cached color information"
+    
 
 def npr_layout(node):
     if node.is_leaf():
@@ -49,8 +51,8 @@ def npr_layout(node):
     if "treemerger_rf" in node.features:
         faces.add_face_to_node(faces.AttrFace("treemerger_rf", fsize=8), node, 0, position="branch-bottom")
 
-    support_radius= (1.0 - node.support) * 30
-    if support_radius > 1:
+    support_radius= (1.0 - node.support) * 50
+    if not node.is_leaf() and support_radius > 1:
         support_face = faces.CircleFace(support_radius, "red")
         faces.add_face_to_node(support_face, node, 0, position="float-behind")
         support_face.opacity = 0.25
@@ -72,8 +74,6 @@ def npr_layout(node):
              
         support_face = faces.CircleFace(200, color)        
         faces.add_face_to_node(support_face, node, 0, position="float-behind")
-        
-
 
     
 def ncbi_layout(node):
@@ -98,8 +98,9 @@ def ncbi_layout(node):
             faces.add_face_to_node(f, node, 10, position="branch-right")
     else:
         if getattr(node, "broken_groups", None):
-            f = faces.TextFace("\n".join(node.broken_groups), fsize=15, fgcolor="red")
-            faces.add_face_to_node(f, node, 1, position="branch-right")
+            for broken in node.broken_groups:
+                f = faces.TextFace(broken, fsize=10, fgcolor="red")
+                faces.add_face_to_node(f, node, 1, position="branch-bottom")
 
     if hasattr(node, "changed"):
         if node.changed == "yes":
@@ -236,7 +237,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--dump", dest="dump",
                         action="store_true", 
-                        help="""Dump annotated tree""")
+                        help="""Dump analysis""")
 
     parser.add_argument("--explore", dest="explore",
                         type=str,
@@ -264,6 +265,10 @@ if __name__ == "__main__":
                         action = "store_true",
                         help="Skip ncbi consensus analysis")
 
+    parser.add_argument("--outgroup", dest="outgroup",
+                        type=str, nargs="+",
+                        help="A list of node names defining the trees outgroup")
+    
     parser.add_argument("--is_sptree", dest="is_sptree",
                         action = "store_true",
                         help="Assumes no duplication nodes in the tree")
@@ -300,8 +305,6 @@ if __name__ == "__main__":
         OUT = sys.stdout
 
     print "Dumping results into", OUT
-    header = ("Tree".center(50), "Total subtrees", "Broken subtrees", "Broken NCBI clades", "RF (avg)", "RF (med)", "RF (std)", "RF (max possible)")
-    print >>OUT, "#"+' '.join([h.center(15) for h in header])
     target_trees = []
     if args.tree_list_file:
         target_trees = [line.strip() for line in open(args.tree_list_file)]
@@ -318,10 +321,23 @@ if __name__ == "__main__":
     else:
         tax2track = {}
     print len(tax2track), len(tax2name)
+    #header = "filename", "refname", "# subtrees", "# dups", "broken subtrees", "ncbi_mistakes", "RF", "avg RF", "RF std", "max RF", "")
+    #print '\t'.join(header)
+    header = ("Tree".center(50), "Total subtrees", "Broken subtrees", "Broken NCBI clades", "RF (avg)", "RF (med)", "RF (std)", "RF (max possible)")
+    print >>OUT, "#"+' '.join([h.center(15) for h in header])
     for tfile in target_trees:
         print tfile
         t = PhyloTree(tfile, sp_naming_function=None)
-        t.sort_descendants()
+        if args.outgroup:
+            if len(args.outgroup) == 1:
+                out = t & args.outgroup[0]
+            else:
+                out = t.get_common_ancestor(args.outgroup)
+                if set(out.get_leaf_names()) ^ set(args.outgroup):
+                    raise ValueError("Outgroup is not monophyletic")
+                
+            t.set_outgroup(out)
+        t.ladderize()
 
         if prev_tree:
             tree_compare(t, prev_tree)
@@ -358,7 +374,7 @@ if __name__ == "__main__":
             else:
                 subtrees = [t]
             valid_subtrees, broken_subtrees, ncbi_mistakes, total_rf = analyze_subtrees(t, subtrees)
-            print             valid_subtrees, broken_subtrees, ncbi_mistakes, total_rf
+            print valid_subtrees, broken_subtrees, ncbi_mistakes, total_rf
         else:
             subtrees = []
             valid_subtrees, broken_subtrees, ncbi_mistakes, total_rf = 0, 0, 0, 0
@@ -416,7 +432,21 @@ if __name__ == "__main__":
             ts.show_leaf_name = False
             ts.layout_fn = ncbi_layout 
             ts.mode = "r"
+            t.dist = 0
             if args.show_tree:
+                #if args.hide_monophyletic:
+                #    tax2monophyletic = {}
+                #    n2content = t.get_node2content()
+                #    for node in t.traverse():
+                #        term2count = defaultdict(int)
+                #        for leaf in n2content[node]:
+                #            if leaf.lineage:
+                #                for term in leaf.lineage:
+                #                    term2count[term] += 1
+                #        expected_size = len(n2content)
+                #        for term, count in term2count.iteritems():
+                #            if count > 1
+                    
                 print "Showing tree..."
                 t.show(tree_style=ts)
             else:

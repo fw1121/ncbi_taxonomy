@@ -2,13 +2,13 @@ import os
 from string import strip
 from ete2 import Tree
 
-
 def load_ncbi_tree_from_dump():
     # Download: ftp://ftp.ncbi.nih.gov/pub/taxonomy/taxdump.tar.gz
     parent2child = {}
     name2node = {}
     node2taxname = {}
     synonyms = set()
+    name2rank = {}
     print "Loading node names..."
     for line in open("names.dmp"):
         fields =  map(strip, line.split("|"))
@@ -18,7 +18,7 @@ def load_ncbi_tree_from_dump():
         if name_type == "scientific name":
             node2taxname[nodename] = taxname
         elif name_type in set(["synonym", "equivalent name", "genbank equivalent name",
-                               "anamorph", "genbank synonym", "genbank anamorph"]):
+                               "anamorph", "genbank synonym", "genbank anamorph", "teleomorph"]):
             synonyms.add( (nodename, taxname) )
     print len(node2taxname), "names loaded."
     print len(synonyms), "synonyms loaded."
@@ -31,6 +31,7 @@ def load_ncbi_tree_from_dump():
         n = Tree()
         n.name = nodename
         n.taxname = node2taxname[nodename]
+        n.rank = fields[2].strip()
         parent2child[nodename] = parentname
         name2node[nodename] = n
     print len(name2node), "nodes loaded."
@@ -57,9 +58,9 @@ def generate_table(t):
             track.append(temp_node.name)
             temp_node = temp_node.up
         if n.up:
-            print >>OUT, '\t'.join([n.name, n.up.name, n.taxname, ','.join(track)])
+            print >>OUT, '\t'.join([n.name, n.up.name, n.taxname, n.rank, ','.join(track)])
         else:
-            print >>OUT, '\t'.join([n.name, "", n.taxname, ','.join(track)])
+            print >>OUT, '\t'.join([n.name, "", n.taxname, n.rank, ','.join(track)])
     OUT.close()
 
     
@@ -73,7 +74,7 @@ CMD = open("commands.tmp", "w")
 cmd = """
 DROP TABLE IF EXISTS species;
 DROP TABLE IF EXISTS synonym; 
-CREATE TABLE species (taxid INT PRIMARY KEY, parent INT, spname VARCHAR(50) COLLATE NOCASE, track TEXT);
+CREATE TABLE species (taxid INT PRIMARY KEY, parent INT, spname VARCHAR(50) COLLATE NOCASE, rank VARCHAR(50), track TEXT);
 CREATE TABLE synonym (taxid INT,spname VARCHAR(50) COLLATE NOCASE, PRIMARY KEY (spname, taxid));
 CREATE INDEX spname1 ON species (spname COLLATE NOCASE);
 CREATE INDEX spname2 ON synonym (spname COLLATE NOCASE);

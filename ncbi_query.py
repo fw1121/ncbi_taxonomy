@@ -12,6 +12,60 @@ import sqlite3
 import math
 from ete2 import PhyloTree
 
+paired_colors = ['#a6cee3',
+  '#1f78b4',
+  '#b2df8a',
+  '#33a02c',
+  '#fb9a99',
+  '#e31a1c',
+  '#fdbf6f',
+  '#ff7f00',
+  '#cab2d6',
+  '#6a3d9a',
+  '#ffff99',
+  '#b15928']
+
+COLOR_RANKS = {
+    "superclass": "#a6cee3",
+    "class": "#a6cee3",
+    "subclass": "#a6cee3",
+    "infraclass": "#a6cee3",
+    
+    "superfamily": "#1f78b4",
+    "family": "#1f78b4",
+    "subfamily": "#1f78b4",
+
+    "superkingdom": "#b2df8a",
+    "kingdom": "#b2df8a",
+    "subkingdom": "#b2df8a",
+    
+    "superorder": "#33a02c",
+    "order": "#33a02c",
+    "suborder": "#33a02c",
+    "infraorder": "#33a02c",
+    "parvorder": "#33a02c",
+
+    "superphylum": "#fdbf6f",
+    "phylum": "#fdbf6f",
+    "subphylum": "#fdbf6f",
+
+#    "species group": "",
+#    "species subgroup": "",
+#    "species": "",
+#    "subspecies": "",
+
+#    "genus": "",
+#    "subgenus": "",
+
+#    "no rank": "",
+#    "forma": "",
+
+#    "tribe": "",
+#    "subtribe": "",
+#    "varietas"
+    }
+
+
 # Loads database
 module_path = os.path.split(os.path.realpath(__file__))[0]
 c = sqlite3.connect(os.path.join(module_path, 'taxa.sqlite'))
@@ -22,6 +76,9 @@ Query ncbi taxonomy using a local DB
 
 log.basicConfig(level=log.INFO, \
                     format="%(levelname)s - %(message)s" )
+
+
+
 
 def get_fuzzy_name_translation(name, sim=0.9):
     log.info("Trying fuzzy search for %s", name)
@@ -59,7 +116,7 @@ def get_sp_lineage(taxid):
         #raise ValueError("%s taxid not found" %taxid)
     track = map(int, raw_track[0].split(","))
     return list(reversed(track))
-    
+
 def get_taxid_translator(taxids):
     all_ids = set(taxids)
     all_ids.discard(None)
@@ -71,7 +128,18 @@ def get_taxid_translator(taxids):
     for tax, spname in result.fetchall():
         id2name[tax] = spname
     return id2name
-  
+
+def get_ranks(taxids):
+    all_ids = set(taxids)
+    all_ids.discard(None)
+    all_ids.discard("")
+    query = ','.join(['"%s"' %v for v in all_ids])
+    cmd = "select taxid, rank FROM species WHERE taxid IN (%s);" %query
+    result = c.execute(cmd)
+    id2rank = {}
+    for tax, spname in result.fetchall():
+        id2rank[tax] = spname
+    return id2rank
 
 def get_name_translator(names):
     name2id = {}
@@ -111,7 +179,7 @@ def translate_to_names(taxids):
     return names
 
     
-def get_topology(taxids):
+def get_topology(taxids, intermediate_nodes=False):
     sp2track = {}
     elem2node = {}
     for sp in taxids:
@@ -132,20 +200,22 @@ def get_topology(taxids):
     root = elem2node[1]
 
     # This fixes cases in which requested taxids are internal nodes
-    for x in set(sp2track) - set([n.name for n in root.iter_leaves()]):
-        new_leaf = sp2track[x][-1].copy()
-        for ch in new_leaf.get_children():
-            ch.detach()
-        sp2track[x][-1].add_child(new_leaf)
+    #for x in set(sp2track) - set([n.name for n in root.iter_leaves()]):
+    #    new_leaf = sp2track[x][-1].copy()
+    #    for ch in new_leaf.get_children():
+    #        ch.detach()
+    #    sp2track[x][-1].add_child(new_leaf)
 
     #remove onechild-nodes
-    clean=1
-    if clean:
-        for n in root.get_descendants():
-            if len(n.children) == 1: 
-                n.delete()
-        
-
+    if not intermediate_nodes:
+        clean=1
+        if clean:
+            for n in root.get_descendants():
+                print n.name
+                if len(n.children) == 1 and \
+                        int(n.name) not in taxids: 
+                    n.delete(prevent_nondicotomic=False)
+       
     if len(root.children) == 1:
         return root.children[0].detach()
     else:
@@ -205,7 +275,10 @@ if __name__ == "__main__":
                         type=str, 
                         help="""file containing a list of taxids (one per line)""")
 
-
+    parser.add_argument("-r", "--reftree", dest="reftree",   
+                        type=str, 
+                        help="""tree file containing taxids as node names.""")
+    
     parser.add_argument("-n", "--name", dest="names", nargs="+",  
                         type=str, 
                         help="""species or taxa names (comma separated)""")
@@ -218,6 +291,18 @@ if __name__ == "__main__":
                         action="store_true",
                         help="""shows the NCBI taxonomy tree of the provided species""")
 
+    parser.add_argument("--fix_subspecies", dest="subspecies",   
+                        action="store_true",
+                        help=("When used, all nodes under the the species rank"
+                              " are collapsed, so all species and subspecies"
+                              " are seen as sister nodes"))
+
+    parser.add_argument("--full_lineage", dest="full_lineage",   
+                        action="store_true",
+                        help=("When used, topology is not pruned to avoid "
+                              " one-child-nodes, so the complete lineage"
+                              " track leading from root to tips is kept."))
+        
     parser.add_argument("-i", "--info", dest="info",   
                         action="store_true",
                         help="""shows NCBI information about the species""")
@@ -274,40 +359,72 @@ if __name__ == "__main__":
         all_taxids.extend(map(strip, open(args.taxid_file, "rU").read().split("\n")))
     if args.taxid:
         all_taxids.extend(args.taxid)
-    print all_taxids    
+        
+    reftree = None
+    if args.reftree:
+        reftree = PhyloTree(args.reftree)
+        all_taxids.extend(list(set([n.name for n in reftree.iter_leaves()])))
+            
     if all_taxids and args.info:
         log.info("Dumping %d taxid translations:" %len(all_taxids))
         all_taxids = set(all_taxids)
         all_taxids.discard("")
-        for taxid, name in get_taxid_translator(all_taxids).iteritems():
+        translator = get_taxid_translator(all_taxids)
+        for taxid, name in translator.iteritems():
             lineage = get_sp_lineage(taxid)
             named_lineage = ','.join(translate_to_names(lineage))
             lineage = ','.join(map(str, lineage))
             print "\t".join(map(str, [taxid, name, named_lineage, lineage ]))
-
+        for notfound in all_taxids - set(str(k) for k in translator.iterkeys()):
+            print >>sys.stderr, notfound, "NOT FOUND"
+            
     if all_taxids and args.taxonomy:
         log.info("Dumping NCBY taxonomy of %d taxa:" %len(all_taxids))
         all_taxids = set(all_taxids)
         all_taxids.discard("")
-        t = get_topology(all_taxids)
+        t = get_topology(all_taxids, args.full_lineage)
+        tax2rank = get_ranks([n.name for n in t.traverse()])
         id2name = get_taxid_translator([n.name for n in t.traverse()])
         for n in t.traverse():
             n.add_features(taxid=n.name)
+            n.add_features(rank=tax2rank.get(int(n.name), "?"))
+            if n.rank in COLOR_RANKS:
+                n.add_features(bgcolor=COLOR_RANKS[n.rank])
             if n.is_leaf():
                 n.name = "%s{%s}" %(id2name.get(int(n.name), n.name), n.name)
             else:
                 n.name = id2name.get(int(n.name), n.name)
 
+        if args.subspecies:
+            species_nodes = [n for n in t.traverse() if n.rank == "species"]
+            for sp_node in species_nodes:
+                print sp_node
+                print sp_node.rank, sp_node.name
+                connector = sp_node.__class__()
+                #for ch in sp_node.children:
+                #    print ch
+                #    ch.detach()
+                #    sp_node.add_child(ch)
+                for f in sp_node.features:
+                    connector.add_feature(f, getattr(sp_node, f))
+                sp_node.add_child(connector)
+                print sp_node
+                
         #print t.get_ascii(compact=False)
         print "\n\n**Plain newick:"
         print t.write(format=9)
         print "\n\n**Newick with internal node names:"
         print t.write(format=8)
         print "\n\n**Extended newick:"
-        print t.write(format=9, features=["taxid", "name"])
+        print t.write(format=9, features=["taxid", "name", "bgcolor"])
         for i in t.iter_leaves():
             i.name = i.taxid
         print "\n\n**Plain newick (taxids):"
         print t.write(format=9)
         
-        
+    if all_taxids and reftree:
+        translator = get_taxid_translator(all_taxids)
+        for n in reftree.iter_leaves():
+            n.name = translator.get(int(n.name), n.name)
+        print reftree.write()
+  
