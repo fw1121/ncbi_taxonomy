@@ -179,14 +179,17 @@ def translate_to_names(taxids):
     return names
 
     
-def get_topology(taxids, intermediate_nodes=False):
+def get_topology(taxids, intermediate_nodes=False, rank_limit=None):
     sp2track = {}
     elem2node = {}
     for sp in taxids:
         track = deque()
-        for elem in get_sp_lineage(sp):
+        lineage = get_sp_lineage(sp)
+        id2rank = get_ranks(lineage)
+        for elem in lineage:
             node = elem2node.setdefault(elem, PhyloTree())
             node.name = str(elem)
+            node.add_feature("rank", str(id2rank.get(int(elem), "?")))
             track.append(node)
         sp2track[sp] = track
     
@@ -196,6 +199,8 @@ def get_topology(taxids, intermediate_nodes=False):
         for elem in track:
             if parent and elem not in parent.children:
                 parent.add_child(elem)
+            if rank_limit and elem.rank == rank_limit:
+                break
             parent = elem
     root = elem2node[1]
 
@@ -291,12 +296,17 @@ if __name__ == "__main__":
                         action="store_true",
                         help="""shows the NCBI taxonomy tree of the provided species""")
     
-    parser.add_argument("--fix_subspecies", dest="subspecies",   
+    parser.add_argument("--collapse_subspecies", dest="collapse_subspecies",   
                         action="store_true",
                         help=("When used, all nodes under the the species rank"
                               " are collapsed, so all species and subspecies"
                               " are seen as sister nodes"))
 
+    parser.add_argument("--rank_limit", dest="rank_limit",   
+                        type=str,
+                        help=("When used, all nodes under the provided rank"
+                              " are discarded"))
+    
     parser.add_argument("--full_lineage", dest="full_lineage",   
                         action="store_true",
                         help=("When used, topology is not pruned to avoid "
@@ -312,8 +322,7 @@ if __name__ == "__main__":
                               " species names that could not be translated"
                               " into taxids. A float number must be provided"
                               " indicating the minimum string similarity."))
-
-    
+   
     
     args = parser.parse_args()
     
@@ -384,19 +393,16 @@ if __name__ == "__main__":
         log.info("Dumping NCBY taxonomy of %d taxa:" %len(all_taxids))
         all_taxids = set(all_taxids)
         all_taxids.discard("")
-        t = get_topology(all_taxids, args.full_lineage)
-        tax2rank = get_ranks([n.name for n in t.traverse()])
+        t = get_topology(all_taxids, args.full_lineage, args.rank_limit)
         id2name = get_taxid_translator([n.name for n in t.traverse()])
         for n in t.traverse():
             n.add_features(taxid=n.name)
-            sci_name = id2name.get(int(n.name), "?")
-            n.add_features(sci_name=str(sci_name))
-            n.add_features(rank=tax2rank.get(int(n.name), "?"))
+            n.add_features(sci_name= str(id2name.get(int(n.name), "?")))
             if n.rank in COLOR_RANKS:
                 n.add_features(bgcolor=COLOR_RANKS[n.rank])
             n.name = "%s{%s}" %(id2name.get(int(n.name), n.name), n.name)
 
-        if args.subspecies:
+        if args.collapse_subspecies:
             species_nodes = [n for n in t.traverse() if n.rank == "species"]
             for sp_node in species_nodes:
                 bellow = sp_node.get_descendants()
