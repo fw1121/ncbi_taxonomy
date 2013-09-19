@@ -13,17 +13,17 @@ import math
 from ete2 import PhyloTree
 
 paired_colors = ['#a6cee3',
-  '#1f78b4',
-  '#b2df8a',
-  '#33a02c',
-  '#fb9a99',
-  '#e31a1c',
-  '#fdbf6f',
-  '#ff7f00',
-  '#cab2d6',
-  '#6a3d9a',
-  '#ffff99',
-  '#b15928']
+                 '#1f78b4',
+                 '#b2df8a',
+                 '#33a02c',
+                 '#fb9a99',
+                 '#e31a1c',
+                 '#fdbf6f',
+                 '#ff7f00',
+                 '#cab2d6',
+                 '#6a3d9a',
+                 '#ffff99',
+                 '#b15928']
 
 COLOR_RANKS = {
     "superclass": "#a6cee3",
@@ -376,7 +376,7 @@ if __name__ == "__main__":
     if args.reftree:
         reftree = PhyloTree(args.reftree)
         all_taxids.extend(list(set([n.name for n in reftree.iter_leaves()])))
-            
+                
     if all_taxids and args.info:
         log.info("Dumping %d taxid translations:" %len(all_taxids))
         all_taxids = set(all_taxids)
@@ -436,6 +436,11 @@ if __name__ == "__main__":
     if all_taxids and reftree:
         translator = get_taxid_translator(all_taxids)
         for n in reftree.iter_leaves():
-            n.name = translator.get(int(n.name), n.name)
-        print reftree.write()
+            n.add_features(taxid=n.name)
+            n.add_features(cool_name = translator.get(int(n.name), n.name))
+            lineage = get_sp_lineage(n.taxid)
+            named_lineage = '|'.join(translate_to_names(lineage))
+            n.add_features(ncbi_track=named_lineage)
+            
+        print reftree.write(features=["taxid", "cool_name", "ncbi_track"])
   
