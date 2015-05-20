@@ -1,3 +1,5 @@
+** THIS REPOSITORY IS DEPRECATED, SAME FUNCTIONALITY IS NOW PART OF THE ETE TOOLKIT SOFTWARE (http://github.com/jhcepas/ete) **
+
 NCBI taxonomy tree made easy
 =============================
 
